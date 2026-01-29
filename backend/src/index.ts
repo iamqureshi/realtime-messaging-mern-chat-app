@@ -1,23 +1,18 @@
-import express, { Request, Response } from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
+import connectDB from "./config/db";
+import { app } from "./app";
+import { env } from "./config/env";
 
-dotenv.config();
-
-const app = express();
-const port = process.env.PORT || 5000;
-
-app.use(cors());
-app.use(express.json());
-
-app.get('/', (req: Request, res: Response) => {
-  res.send('Backend is running!');
+dotenv.config({
+  path: "./.env",
 });
 
-app.get('/api/test', (req: Request, res: Response) => {
-  res.json({ message: 'Hello from the Backend!' });
-});
-
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});
+connectDB()
+  .then(() => {
+    app.listen(env.PORT || 5000, () => {
+      console.log(`Server is running at port : ${env.PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log("MONGO db connection failed !!! ", err);
+  });
