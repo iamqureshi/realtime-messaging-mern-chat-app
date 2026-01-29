@@ -20,8 +20,12 @@ app.use(cookieParser());
 
 
 import authRouter from "./routes/auth.routes";
+import chatRouter from "./routes/chat.routes";
+import messageRouter from "./routes/message.routes";
 
 app.use("/api/v1/users", authRouter);
+app.use("/api/v1/chats", chatRouter);
+app.use("/api/v1/messages", messageRouter);
 
 app.use(errorHandler);
 
