@@ -17,10 +17,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   };
 
   return (
-    <div className="p-3 sm:p-4 bg-gray-900 border-t border-gray-800 backdrop-blur-sm sticky bottom-0 z-20">
+    <>
       <form 
         onSubmit={handleSubmit}
-        className="flex items-end gap-2 bg-gray-800/50 p-2 rounded-2xl border border-gray-700/50 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all duration-300"
+        className="flex items-end gap-2 bg-gray-800/50 p-2 mb-8 rounded-2xl border border-gray-700/50 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all duration-300"
       >
         <button 
           type="button" 
@@ -66,6 +66,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           </button>
         )}
       </form>
-    </div>
+    </>
   );
 };
