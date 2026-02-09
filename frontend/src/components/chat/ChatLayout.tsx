@@ -1,63 +1,134 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { ChatWindow } from './ChatWindow';
-import { mockChats, mockMessages } from '../../data/mockData';
-import { Message } from '../../types';
+import { Chat, Message } from '../../types';
+import { chatService } from '../../services/chat.service';
+import { useSocket } from '../../context/SocketContext';
 
 export const ChatLayout: React.FC = () => {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [chats, setChats] = useState(mockChats);
-  const [messages, setMessages] = useState(mockMessages);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const { socket } = useSocket();
 
-  const activeChat = activeChatId ? chats.find(c => c.id === activeChatId) || null : null;
-  const currentMessages = activeChatId ? messages[activeChatId] || [] : [];
+  const activeChat = activeChatId ? chats.find(c => c._id === activeChatId) || null : null;
 
-  const handleSendMessage = (text: string) => {
+  useEffect(() => {
+    fetchChats();
+  }, []);
+
+  const fetchChats = async () => {
+    try {
+      const data = await chatService.fetchChats();
+      setChats(data);
+    } catch (error) {
+      console.error("Failed to fetch chats", error);
+    }
+  };
+
+  useEffect(() => {
     if (!activeChatId) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: 'me',
-      content: text,
-      timestamp: new Date().toISOString(),
-      status: 'sent',
-      type: 'text',
+    const loadMessages = async () => {
+      try {
+        const data = await chatService.fetchMessages(activeChatId);
+        // Map backend message to include status for UI
+        const messagesWithStatus = data.map((msg: any) => ({
+            ...msg,
+            status: msg.seenBy && msg.seenBy.length > 0 ? 'read' : 'sent'
+        }));
+        setMessages(messagesWithStatus);
+        socket?.emit("join_chat", activeChatId);
+      } catch (error) {
+        console.error("Failed to fetch messages", error);
+      }
+    };
+    loadMessages();
+  }, [activeChatId, socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMessageReceived = (newMessage: any) => {
+     
+      const chatId = newMessage.chatId?._id || newMessage.chatId;
+
+      if (activeChatId && chatId === activeChatId) {
+        setMessages((prev) => [...prev, newMessage]);
+        // Emit read event if we are in this chat
+        socket?.emit("read_message", { chatId, userId: "me" }); 
+      }
+
+      setChats((prev) => {
+        const chatExists = prev.find(c => c._id === chatId);
+        
+        if (chatExists) {
+             return prev.map((c) => {
+              if (c._id === chatId) {
+                return { ...c, latestMessage: newMessage };
+              }
+              return c;
+            });
+        } else {
+      
+            const chatData = newMessage.chatId;
+            if (chatData && chatData._id && chatData.members) {
+                
+                 return [{ ...chatData, latestMessage: newMessage }, ...prev];
+            }
+            return prev;
+        }
+      });
     };
 
-    setMessages(prev => ({
-      ...prev,
-      [activeChatId]: [...(prev[activeChatId] || []), newMessage]
-    }));
-    
-   
-    setChats(prev => prev.map(chat => 
-        chat.id === activeChatId 
-        ? { ...chat, lastMessage: newMessage }
-        : chat
-    ));
-    
-   
-    setTimeout(() => {
-        const reply: Message = {
-            id: (Date.now() + 1).toString(),
-            senderId: activeChat?.participant.id || 'unknown',
-            content: 'This is an automatic reply mock.',
-            timestamp: new Date().toISOString(),
-            status: 'delivered',
-            type: 'text',
-        };
-        
-        setMessages(prev => ({
-            ...prev,
-            [activeChatId]: [...(prev[activeChatId] || []), reply]
-          }));
+    const handleMessageRead = (data: { chatId: string }) => {
+        if (activeChatId && data.chatId === activeChatId) {
+            setMessages((prev) => 
+                prev.map(msg => ({ ...msg, status: 'read' }))
+            );
+        }
+    };
 
-        setChats(prev => prev.map(chat => 
-            chat.id === activeChatId 
-            ? { ...chat, lastMessage: reply }
-            : chat
-        ));
-    }, 2000);
+    socket.on("message_recieved", handleMessageReceived);
+    socket.on("message_read", handleMessageRead);
+
+    return () => {
+      socket.off("message_recieved", handleMessageReceived);
+      socket.off("message_read", handleMessageRead);
+    };
+  }, [socket, activeChatId]);
+
+  const handleSendMessage = async (text: string) => {
+    if (!activeChatId) return;
+
+    try {
+      const newMessage = await chatService.sendMessage(text, activeChatId);
+      const messageWithStatus = { ...newMessage, status: 'sent' };
+      setMessages((prev) => [...prev, messageWithStatus]);
+      socket?.emit("new_message", messageWithStatus);
+
+      setChats((prev) =>
+        prev.map((c) =>
+          c._id === activeChatId
+            ? { ...c, latestMessage: newMessage }
+            : c
+        )
+      );
+    } catch (error) {
+      console.error("Failed to send message", error);
+    }
+  };
+
+  const handleAccessChat = async (userId: string) => {
+    try {
+      const chat = await chatService.accessChat(userId);
+      if (!chats.find((c) => c._id === chat._id)) {
+        setChats((prev) => [chat, ...prev]);
+      }
+      setActiveChatId(chat._id);
+    } catch (error) {
+      console.error("Failed to access chat", error);
+    }
   };
 
   return (
@@ -70,6 +141,7 @@ export const ChatLayout: React.FC = () => {
           chats={chats} 
           activeChatId={activeChatId} 
           onSelectChat={setActiveChatId} 
+          onAccessChat={handleAccessChat}
         />
       </div>
 
@@ -79,7 +151,7 @@ export const ChatLayout: React.FC = () => {
       `}>
         <ChatWindow 
           chat={activeChat} 
-          messages={currentMessages} 
+          messages={messages} 
           onSendMessage={handleSendMessage}
           onBack={() => setActiveChatId(null)}
         />

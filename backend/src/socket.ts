@@ -6,7 +6,7 @@ export const initializeSocket = (server: HttpServer) => {
   const io = new Server(server, {
     pingTimeout: 60000,
     cors: {
-      origin: env.CORS_ORIGIN,
+      origin: [env.CORS_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"],
       credentials: true,
     },
   });
@@ -22,6 +22,7 @@ export const initializeSocket = (server: HttpServer) => {
       onlineUsers.set(userId, socket.id);
       socket.emit("connected");
       io.emit("user_online", userId);
+      socket.emit("online_users", Array.from(onlineUsers.keys()));
     });
 
     socket.on("join_chat", (room: string) => {
@@ -29,19 +30,28 @@ export const initializeSocket = (server: HttpServer) => {
       console.log("User Joined Room: " + room);
     });
 
-    socket.on("typing", (room: string) => socket.in(room).emit("typing"));
-    socket.on("stop_typing", (room: string) => socket.in(room).emit("stop_typing"));
+    socket.on("typing", (room: string) => socket.in(room).emit("typing", room));
+    socket.on("stop_typing", (room: string) => socket.in(room).emit("stop_typing", room));
 
     socket.on("new_message", (newMessageRecieved: any) => {
       const chat = newMessageRecieved.chat || newMessageRecieved.chatId;
 
+      if (!chat) return console.log("Chat not defined");
       if (!chat.members) return console.log("chat.members not defined");
 
-      chat.members.forEach((user: any) => {
-        if (user._id === newMessageRecieved.sender._id) return;
+      const senderId = newMessageRecieved.senderId?._id || newMessageRecieved.sender?._id || newMessageRecieved.senderId;
 
-        socket.in(user._id).emit("message_recieved", newMessageRecieved);
+      chat.members.forEach((user: any) => {
+        const userId = user._id ? String(user._id) : String(user);
+        if (userId === String(senderId)) return;
+
+        socket.in(userId).emit("message_recieved", newMessageRecieved);
       });
+    });
+
+    socket.on("read_message", (data: { chatId: string, userId: string }) => {
+        // Broadcast to the chat room that messages have been read
+        socket.in(data.chatId).emit("message_read", data);
     });
 
     socket.on("disconnect", () => {

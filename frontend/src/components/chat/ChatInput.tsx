@@ -1,18 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Smile, Paperclip, Mic } from 'lucide-react';
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
+  onTyping?: () => void;
+  onStopTyping?: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onTyping, onStopTyping }) => {
   const [text, setText] = useState('');
+
+  const [typing, setTyping] = useState(false);
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setText(e.target.value);
+      
+      if (!typing && onTyping) {
+        setTyping(true);
+        onTyping();
+      }
+
+
+      const lastTypingTime = new Date().getTime();
+      const timerLength = 3000;
+      
+      setTimeout(() => {
+        const timeNow = new Date().getTime();
+        const timeDiff = timeNow - lastTypingTime;
+        if (timeDiff >= timerLength && typing && onStopTyping) {
+             onTyping && onStopTyping();
+        }
+      }, timerLength);
+  };
+  
+  useEffect(() => {
+      const delayDebounceFn = setTimeout(() => {
+        if (typing && onStopTyping) {
+             onStopTyping();
+             setTyping(false);
+        }
+      }, 3000);
+
+      return () => clearTimeout(delayDebounceFn);
+  }, [text, typing, onStopTyping]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (text.trim()) {
       onSendMessage(text);
       setText('');
+      if(onStopTyping) {
+          onStopTyping();
+          setTyping(false);
+      }
     }
   };
 
@@ -37,7 +77,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();

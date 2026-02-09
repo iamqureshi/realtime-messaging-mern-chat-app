@@ -70,6 +70,12 @@ export const fetchChats = asyncHandler(async (req: Request, res: Response) => {
       })
       .sort({ updatedAt: -1 });
 
+   
+    results = results.filter((c) => {
+        if (c.isGroup) return true;
+        return !!c.latestMessage;
+    });
+
 
     res.status(200).json(new ApiResponse(200, results, "Chats fetched successfully"));
   } catch (error) {

@@ -1,25 +1,34 @@
 export interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  status: 'online' | 'offline' | 'busy';
+  _id: string;
+  userName: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  status?: 'online' | 'offline' | 'busy';
   bio?: string;
 }
 
 export interface Message {
-  id: string;
-  senderId: string;
-  content: string;
-  timestamp: string;
-  status: 'sent' | 'delivered' | 'read';
-  type: 'text' | 'image' | 'file';
-  fileUrl?: string; // If type is image or file
+  _id: string;
+  senderId: User | string;
+  content?: string;
+  text?: string;
+  chatId: string;
+  createdAt: string;
+  seenBy?: string[];
+  status?: 'sent' | 'delivered' | 'read';
+  type?: 'text' | 'image' | 'file';
 }
 
 export interface Chat {
-  id: string;
-  participant: User;
-  lastMessage?: Message;
-  unreadCount?: number;
-  isTyping?: boolean;
+  _id: string;
+  chatName: string;
+  isGroup: boolean;
+  members: User[];
+  latestMessage?: Message;
+  groupAdmin?: string;
+  createdAt: string;
+  updatedAt: string;
+  unreadCount?: number; 
 }

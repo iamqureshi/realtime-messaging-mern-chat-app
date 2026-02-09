@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { authService } from "../services/auth.service";
 
-interface User {
-  _id: string;
-  userName: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-}
+import { User } from "../types";
 
 interface AuthContextType {
   user: User | null;
@@ -26,16 +20,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkAuth = async () => {
         try {
+           // Check if we have tokens first
+           const token = localStorage.getItem("accessToken");
+           const storedUser = localStorage.getItem("user");
+           
+           if (token && storedUser) {
+             setUser(JSON.parse(storedUser));
+           }
+
+           // Verify with backend
            const res = await authService.refreshToken();
+           
            if(res?.data?.accessToken) {
-             const storedUser = localStorage.getItem("user");
+             localStorage.setItem("accessToken", res.data.accessToken);
+             localStorage.setItem("refreshToken", res.data.refreshToken);
+             
              if (storedUser) {
                  setUser(JSON.parse(storedUser));
              }
            }
-        } catch (error) {
-            console.log("Not authenticated");
-            localStorage.removeItem("user");
+        } catch (error: any) {
+            console.log("Not authenticated", error);
+            // Only logout if explicit 401 or similar auth error
+            if (error.response && error.response.status === 401) {
+                setUser(null);
+                localStorage.removeItem("user");
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("refreshToken");
+            }
         } finally {
             setLoading(false);
         }
@@ -47,6 +59,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const res = await authService.login(credentials);
     setUser(res.data.user);
     localStorage.setItem("user", JSON.stringify(res.data.user));
+    localStorage.setItem("accessToken", res.data.accessToken);
+    localStorage.setItem("refreshToken", res.data.refreshToken);
   };
 
   const register = async (userData: any) => {
@@ -59,6 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null);
       localStorage.removeItem("user");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
     }
   };
 
@@ -76,3 +92,4 @@ export const useAuth = () => {
   }
   return context;
 };
+  

@@ -3,12 +3,12 @@ import api from "./api";
 export const chatService = {
   async fetchChats() {
     const response = await api.get("/chats");
-    return response.data;
+    return response.data.data;
   },
 
   async fetchMessages(chatId: string) {
     const response = await api.get(`/messages/${chatId}`);
-    return response.data;
+    return response.data.data;
   },
 
   async sendMessage(content: string, chatId: string) {
@@ -16,7 +16,7 @@ export const chatService = {
        chatId,
        content,
     });
-    return response.data;
+    return response.data.data;
   },
 
   async createGroupChat(name: string, users: string[]) {
@@ -24,11 +24,11 @@ export const chatService = {
           name,
           users,
       });
-      return response.data;
+      return response.data.data;
   },
 
   async accessChat(userId: string) {
       const response = await api.post("/chats", { userId });
-      return response.data;
+      return response.data.data;
   }
 };

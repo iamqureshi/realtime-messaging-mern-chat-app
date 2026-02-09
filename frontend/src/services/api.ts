@@ -14,6 +14,19 @@ interface ExtendedRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -27,7 +40,16 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        await api.post("/users/refresh-token");
+        const refreshToken = localStorage.getItem("refreshToken");
+        const response = await api.post("/users/refresh-token", { refreshToken });
+        
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+        
+        localStorage.setItem("accessToken", accessToken);
+        localStorage.setItem("refreshToken", newRefreshToken);
+        
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        
         return api(originalRequest);
       } catch (refreshError) {
         return Promise.reject(refreshError);

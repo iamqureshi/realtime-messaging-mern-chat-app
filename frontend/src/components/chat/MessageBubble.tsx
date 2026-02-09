@@ -9,6 +9,9 @@ interface MessageBubbleProps {
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, showTail = true }) => {
+  const content = message.content || message.text;
+  const time = message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
   return (
     <div className={`flex w-full ${isOwn ? 'justify-end' : 'justify-start'} mb-1 group`}>
       <div 
@@ -22,12 +25,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, sh
         `}
       >
         <p className="text-[15px] sm:text-[16px] leading-[1.4] whitespace-pre-wrap break-words">
-          {message.content}
+          {content}
         </p>
         
         <div className={`flex items-center justify-end gap-1 mt-1 ${isOwn ? 'text-emerald-200' : 'text-gray-400'}`}>
           <span className="text-[10px] sm:text-[11px] font-medium opacity-80">
-            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {time}
           </span>
           {isOwn && (
              <span>

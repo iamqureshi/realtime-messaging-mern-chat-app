@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
-import { Chat, Message } from '../../types';
+import { Chat, Message, User } from '../../types';
 import { MessageSquare } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -14,6 +16,9 @@ interface ChatWindowProps {
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMessage, onBack }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const { socket, onlineUsers } = useSocket();
+  const [isTyping, setIsTyping] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,7 +26,57 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping]); 
+  useEffect(() => {
+    if (!socket || !chat) return;
+    
+  
+    setIsTyping(false);
+
+    const handleTyping = (room: string) => {
+      if (chat._id === room) setIsTyping(true);
+    };
+    const handleStopTyping = (room: string) => {
+      if (chat._id === room) setIsTyping(false);
+    };
+
+    socket.on("typing", handleTyping);
+    socket.on("stop_typing", handleStopTyping);
+
+    return () => {
+      socket.off("typing", handleTyping);
+      socket.off("stop_typing", handleStopTyping);
+    };
+  }, [socket, chat]);
+
+  const handleTypingStart = () => {
+    if (socket && chat) socket.emit("typing", chat._id);
+  };
+
+  const handleTypingStop = () => {
+    if (socket && chat) socket.emit("stop_typing", chat._id);
+  };
+
+
+  const getDisplayInfo = () => {
+      if (!chat || !user) return { name: '', avatar: '', isOnline: false };
+      
+      if (chat.isGroup) {
+          return {
+              name: chat.chatName,
+              avatar: '', 
+              isOnline: false 
+          };
+      }
+
+      
+      const other = chat.members.find(m => m._id !== user._id) || chat.members[0];
+      return {
+          name: other?.userName || 'Unknown',
+          avatar: other?.avatar,
+          isOnline: other ? onlineUsers.includes(other._id) : false
+      };
+  };
 
   if (!chat) {
     return (
@@ -42,29 +97,53 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
     );
   }
 
+  const { name, avatar, isOnline } = getDisplayInfo();
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0a0f1c] relative">
       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none"></div>
       
-      <ChatHeader participant={chat.participant} onBack={onBack} />
+      <ChatHeader 
+        chatName={name} 
+        avatar={avatar} 
+        isOnline={isOnline} 
+        isTyping={isTyping}
+        onBack={onBack} 
+      />
       
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar z-10 w-full max-w-5xl mx-auto">
         {messages.map((msg) => {
-          const isOwn = msg.senderId === 'me';
-          // Check if previous message timestamp is close to current to group them visually (optional enhancement)
+          const senderId = typeof msg.senderId === 'string' ? msg.senderId : msg.senderId._id;
+          const isOwn = senderId === user?._id;
+          
           return (
             <MessageBubble 
-              key={msg.id} 
+              key={msg._id || Math.random().toString()} // Fallback key
               message={msg} 
               isOwn={isOwn} 
             />
           );
         })}
+        {isTyping && (
+             <div className="flex items-center gap-2 mb-2 ml-4">
+                 <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                     <span className="flex gap-1">
+                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
+                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-75"></span>
+                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-150"></span>
+                     </span>
+                 </div>
+             </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       <div className="w-full max-w-5xl mx-auto z-10">
-         <ChatInput onSendMessage={onSendMessage} />
+         <ChatInput 
+            onSendMessage={onSendMessage} 
+            onTyping={handleTypingStart}
+            onStopTyping={handleTypingStop}
+         />
       </div>
     </div>
   );
