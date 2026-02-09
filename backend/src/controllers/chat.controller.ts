@@ -76,8 +76,20 @@ export const fetchChats = asyncHandler(async (req: Request, res: Response) => {
         return !!c.latestMessage;
     });
 
+    const chatsWithUnread = await Promise.all(
+        results.map(async (chat) => {
+            const unreadCount = await import("../models/message.model").then((m) =>
+                m.Message.countDocuments({
+                    chatId: chat._id,
+                    senderId: { $ne: req.user?._id },
+                    seenBy: { $ne: req.user?._id },
+                })
+            );
+            return { ...chat.toObject(), unreadCount };
+        })
+    );
 
-    res.status(200).json(new ApiResponse(200, results, "Chats fetched successfully"));
+    res.status(200).json(new ApiResponse(200, chatsWithUnread, "Chats fetched successfully"));
   } catch (error) {
     throw new ApiError(400, "Failed to fetch chats");
   }
@@ -89,7 +101,7 @@ export const createGroupChat = asyncHandler(async (req: Request, res: Response) 
     throw new ApiError(400, "Please fill all the fields");
   }
 
-  let users = JSON.parse(req.body.users);
+  let users = typeof req.body.users === 'string' ? JSON.parse(req.body.users) : req.body.users;
 
   if (users.length < 2) {
     throw new ApiError(400, "More than 2 users are required to form a group chat");

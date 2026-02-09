@@ -43,6 +43,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
     socket.on("typing", handleTyping);
     socket.on("stop_typing", handleStopTyping);
 
+    // Also emit read_message when entering the room
+    if (chat && user) {
+        socket.emit("read_message", { chatId: chat._id, userId: user._id });
+    }
+
     return () => {
       socket.off("typing", handleTyping);
       socket.off("stop_typing", handleStopTyping);

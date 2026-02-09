@@ -5,6 +5,8 @@ export interface IMessage extends Document {
   senderId: mongoose.Types.ObjectId;
   text: string;
   seenBy: mongoose.Types.ObjectId[];
+  deliveredTo: mongoose.Types.ObjectId[];
+  status: "sent" | "delivered" | "read";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +31,17 @@ const messageSchema = new Schema<IMessage>(
         ref: "User",
       },
     ],
+    deliveredTo: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    status: {
+      type: String,
+      enum: ["sent", "delivered", "read"],
+      default: "sent",
+    },
   },
   {
     timestamps: true,

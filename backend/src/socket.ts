@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import { env } from "./config/env";
+import { Message } from "./models/message.model";
 
 export const initializeSocket = (server: HttpServer) => {
   const io = new Server(server, {
@@ -42,16 +43,58 @@ export const initializeSocket = (server: HttpServer) => {
       const senderId = newMessageRecieved.senderId?._id || newMessageRecieved.sender?._id || newMessageRecieved.senderId;
 
       chat.members.forEach((user: any) => {
+        if (!user) return;
         const userId = user._id ? String(user._id) : String(user);
         if (userId === String(senderId)) return;
-
+ 
         socket.in(userId).emit("message_recieved", newMessageRecieved);
       });
     });
 
-    socket.on("read_message", (data: { chatId: string, userId: string }) => {
-        // Broadcast to the chat room that messages have been read
-        socket.in(data.chatId).emit("message_read", data);
+    socket.on("read_message", async (data: { chatId: string, userId: string }) => {
+        const { chatId, userId } = data;
+        
+        try {
+            await Message.updateMany(
+                { 
+                    chatId: chatId, 
+                    senderId: { $ne: userId },
+                    seenBy: { $ne: userId }
+                },
+                {
+                    $addToSet: { seenBy: userId }
+                }
+            );
+
+            socket.in(chatId).emit("message_read", { chatId, userId });
+        } catch (error) {
+            console.error("Error marking messages as read via socket:", error);
+        }
+    });
+
+    socket.on("message_delivered", async (data: { chatId: string, messageId: string, userId: string }) => {
+        const { chatId, messageId, userId } = data;
+        
+        try {
+            await Message.findByIdAndUpdate(
+                messageId,
+                {
+                    $addToSet: { deliveredTo: userId },
+                    $max: { status: "delivered" }
+                }
+            );
+            
+            const msg = await Message.findById(messageId);
+            if (msg && msg.status === 'sent') {
+                msg.status = 'delivered';
+                await msg.save();
+            }
+
+            // Broadcast
+            socket.in(chatId).emit("message_delivered", { chatId, messageId, userId });
+        } catch (error) {
+            console.error("Error marking message as delivered via socket:", error);
+        }
     });
 
     socket.on("disconnect", () => {

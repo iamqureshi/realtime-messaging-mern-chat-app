@@ -1,8 +1,11 @@
 import React from 'react';
 import { Search, Plus, MoreVertical } from 'lucide-react';
+import { CreateGroupModal } from './CreateGroupModal';
 import { Chat, User } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+
+import { ProfileModal } from './ProfileModal';
 
 import { userService } from '../../services/user.service';
 
@@ -11,14 +14,17 @@ interface SidebarProps {
   activeChatId: string | null;
   onSelectChat: (chatId: string) => void;
   onAccessChat: (userId: string) => void;
+  onRefresh: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectChat, onAccessChat }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectChat, onAccessChat, onRefresh }) => {
   const { user } = useAuth();
   const { onlineUsers } = useSocket();
   const [search, setSearch] = React.useState("");
   const [searchResult, setSearchResult] = React.useState<User[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [showGroupModal, setShowGroupModal] = React.useState(false);
+  const [showProfileModal, setShowProfileModal] = React.useState(false);
 
   const handleSearch = async (query: string) => {
     setSearch(query);
@@ -53,12 +59,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectC
     <div className="w-full md:w-[350px] lg:w-[400px] flex-shrink-0 flex flex-col border-r border-gray-800 bg-gray-900 h-full">
 
       <div className="p-4 flex justify-between items-center border-b border-gray-800 sticky top-0 bg-gray-900 z-10 backdrop-blur-lg bg-opacity-95">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition" onClick={() => setShowProfileModal(true)}>
           {user.avatar ? (
                <img 
                src={user.avatar} 
                alt="My Profile" 
-               className="w-10 h-10 rounded-full object-cover border-2 border-emerald-500 hover:opacity-80 transition cursor-pointer"
+               className="w-10 h-10 rounded-full object-cover border-2 border-emerald-500"
              />
           ) : (
              <div className="w-10 h-10 rounded-full bg-emerald-700 flex items-center justify-center text-white font-bold border-2 border-emerald-500">
@@ -68,10 +74,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectC
          
           <h2 className="text-xl font-bold text-white tracking-tight">Chats</h2>
         </div>
+        
+        {showProfileModal && (
+          <ProfileModal onClose={() => setShowProfileModal(false)} />
+        )}
+
         <div className="flex gap-2 text-gray-400">
-           <button className="p-2 hover:bg-gray-800 rounded-full transition hover:text-white" title="New Chat">
+           <button 
+            onClick={() => setShowGroupModal(true)} 
+            className="p-2 hover:bg-gray-800 rounded-full transition hover:text-white" 
+            title="New Group"
+          >
             <Plus size={20} />
           </button>
+          
+          {showGroupModal && (
+            <CreateGroupModal 
+              onClose={() => setShowGroupModal(false)} 
+              onGroupCreated={() => {
+                onRefresh();
+                setShowGroupModal(false);
+              }} 
+            />
+          )}
           <button className="p-2 hover:bg-gray-800 rounded-full transition hover:text-white" title="More">
             <MoreVertical size={20} />
           </button>
@@ -174,13 +199,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectC
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <p className={`text-sm truncate pr-2 text-gray-400`}>
+                  <p className={`text-sm truncate pr-2 ${chat.unreadCount ? 'text-gray-200 font-medium' : 'text-gray-400'}`}>
                      {chat.latestMessage ? (
                          chat.latestMessage.content || chat.latestMessage.text
                      ) : (
                          <span className="italic text-gray-600">No messages</span>
                      )}
                   </p>
+                  {(chat.unreadCount || 0) > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-emerald-500 text-black text-xs font-bold rounded-full">
+                          {chat.unreadCount}
+                      </span>
+                  )}
                 </div>
               </div>
             </div>
