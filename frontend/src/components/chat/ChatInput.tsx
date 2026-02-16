@@ -11,38 +11,43 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onTyping, o
   const [text, setText] = useState('');
 
   const [typing, setTyping] = useState(false);
+  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const lastTypingEmitRef = React.useRef<number>(0);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setText(e.target.value);
       
-      if (!typing && onTyping) {
+      const now = Date.now();
+      
+      if (!typing || (now - lastTypingEmitRef.current > 2000)) {
+        if (onTyping) {
+            onTyping();
+            lastTypingEmitRef.current = now;
+        }
         setTyping(true);
-        onTyping();
       }
 
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
 
-      const lastTypingTime = new Date().getTime();
       const timerLength = 3000;
       
-      setTimeout(() => {
-        const timeNow = new Date().getTime();
-        const timeDiff = timeNow - lastTypingTime;
-        if (timeDiff >= timerLength && typing && onStopTyping) {
-             onTyping && onStopTyping();
-        }
-      }, timerLength);
+      if (onStopTyping) {
+          typingTimeoutRef.current = setTimeout(() => {
+            onStopTyping();
+            setTyping(false);
+          }, timerLength);
+      }
   };
   
   useEffect(() => {
-      const delayDebounceFn = setTimeout(() => {
-        if (typing && onStopTyping) {
-             onStopTyping();
-             setTyping(false);
+    return () => {
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
         }
-      }, 3000);
-
-      return () => clearTimeout(delayDebounceFn);
-  }, [text, typing, onStopTyping]);
+    };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

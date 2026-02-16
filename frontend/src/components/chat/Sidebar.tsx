@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, MoreVertical } from 'lucide-react';
+import { Search, Plus, MoreVertical, LogOut } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Chat, User } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -18,13 +18,22 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectChat, onAccessChat, onRefresh }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { onlineUsers } = useSocket();
   const [search, setSearch] = React.useState("");
   const [searchResult, setSearchResult] = React.useState<User[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [showGroupModal, setShowGroupModal] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = React.useState(false);
+  const [showDropdown, setShowDropdown] = React.useState(false);
+
+  const handleLogout = async () => {
+      try {
+          await logout();
+      } catch (error) {
+          console.error("Logout failed", error);
+      }
+  };
 
   const handleSearch = async (query: string) => {
     setSearch(query);
@@ -79,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectC
           <ProfileModal onClose={() => setShowProfileModal(false)} />
         )}
 
-        <div className="flex gap-2 text-gray-400">
+        <div className="flex gap-2 text-gray-400 relative">
            <button 
             onClick={() => setShowGroupModal(true)} 
             className="p-2 hover:bg-gray-800 rounded-full transition hover:text-white" 
@@ -97,9 +106,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ chats, activeChatId, onSelectC
               }} 
             />
           )}
-          <button className="p-2 hover:bg-gray-800 rounded-full transition hover:text-white" title="More">
+          <button 
+            className="p-2 hover:bg-gray-800 rounded-full transition hover:text-white" 
+            title="More"
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
             <MoreVertical size={20} />
           </button>
+
+          {showDropdown && (
+            <div className="absolute right-0 top-12 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+               <button 
+                 onClick={handleLogout}
+                 className="w-full text-left px-4 py-3 text-red-500 hover:bg-red-500/10 hover:text-red-400 transition flex items-center gap-2 font-medium"
+               >
+                 <LogOut size={18} />
+                 Logout
+               </button>
+            </div>
+          )}
+
+          {showDropdown && (
+             <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)}></div>
+          )}
         </div>
       </div>
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
-import { Chat, Message, User } from '../../types';
+import { Chat, Message } from '../../types';
 import { MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
@@ -18,7 +18,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { socket, onlineUsers } = useSocket();
-  const [isTyping, setIsTyping] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<{ userId: string, userName: string, lastActive: number }[]>([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -26,24 +26,51 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isTyping]); 
+  }, [messages, typingUsers]); 
+
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setTypingUsers((prev) => {
+              const next = prev.filter(u => Date.now() - u.lastActive < 4500);
+              if (next.length !== prev.length) return next;
+              return prev;
+          });
+      }, 1000);
+      return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (!socket || !chat) return;
     
-  
-    setIsTyping(false);
+    setTypingUsers([]);
 
-    const handleTyping = (room: string) => {
-      if (chat._id === room) setIsTyping(true);
+    const handleTyping = (data: any) => {
+      
+        const chatId = typeof data === 'string' ? data : data.chatId;
+        const userId = typeof data === 'string' ? '' : data.userId;
+        const userName = typeof data === 'string' ? 'Someone' : data.userName;
+        
+        if (chat._id === chatId && userId !== user?._id) {
+            setTypingUsers((prev) => {
+            
+                const others = prev.filter(u => u.userId !== userId);
+                return [...others, { userId, userName, lastActive: Date.now() }];
+            });
+        }
     };
-    const handleStopTyping = (room: string) => {
-      if (chat._id === room) setIsTyping(false);
+
+    const handleStopTyping = (data: any) => {
+        const chatId = typeof data === 'string' ? data : data.chatId;
+        const userId = typeof data === 'string' ? '' : data.userId;
+
+        if (chat._id === chatId) {
+             setTypingUsers((prev) => prev.filter(u => u.userId !== userId));
+        }
     };
 
     socket.on("typing", handleTyping);
     socket.on("stop_typing", handleStopTyping);
 
-    // Also emit read_message when entering the room
     if (chat && user) {
         socket.emit("read_message", { chatId: chat._id, userId: user._id });
     }
@@ -52,34 +79,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
       socket.off("typing", handleTyping);
       socket.off("stop_typing", handleStopTyping);
     };
-  }, [socket, chat]);
+  }, [socket, chat, user]);
 
   const handleTypingStart = () => {
-    if (socket && chat) socket.emit("typing", chat._id);
+    if (socket && chat && user) {
+        socket.emit("typing", { chatId: chat._id, userId: user._id, userName: user.userName });
+    }
   };
 
   const handleTypingStop = () => {
-    if (socket && chat) socket.emit("stop_typing", chat._id);
+    if (socket && chat && user) {
+        socket.emit("stop_typing", { chatId: chat._id, userId: user._id });
+    }
   };
 
 
   const getDisplayInfo = () => {
-      if (!chat || !user) return { name: '', avatar: '', isOnline: false };
+      if (!chat || !user) return { name: '', avatar: '', isOnline: false, onlineCount: 0 };
       
+      const members = chat.members || []; 
+
       if (chat.isGroup) {
+          const onlineCount = members.filter(m => m && onlineUsers.includes(m._id)).length;
           return {
               name: chat.chatName,
               avatar: '', 
-              isOnline: false 
+              isOnline: onlineCount > 0,
+              onlineCount
           };
       }
 
-      
-      const other = chat.members.find(m => m._id !== user._id) || chat.members[0];
+      const other = members.find(m => m && m._id !== user._id) || members[0];
       return {
           name: other?.userName || 'Unknown',
           avatar: other?.avatar,
-          isOnline: other ? onlineUsers.includes(other._id) : false
+          isOnline: other ? onlineUsers.includes(other._id) : false,
+          onlineCount: other && onlineUsers.includes(other._id) ? 1 : 0
       };
   };
 
@@ -102,7 +137,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
     );
   }
 
-  const { name, avatar, isOnline } = getDisplayInfo();
+  const { name, avatar, isOnline, onlineCount } = getDisplayInfo();
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0a0f1c] relative">
@@ -112,7 +147,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
         chatName={name} 
         avatar={avatar} 
         isOnline={isOnline} 
-        isTyping={isTyping}
+        onlineCount={onlineCount}
+        typingUsers={typingUsers}
         onBack={onBack} 
       />
       
@@ -129,13 +165,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, messages, onSendMe
             />
           );
         })}
-        {isTyping && (
+        {typingUsers.length > 0 && (
              <div className="flex items-center gap-2 mb-2 ml-4">
-                 <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                 <div className="bg-gray-800 rounded-full px-4 py-1 flex items-center gap-2">
+                     <span className="text-xs text-gray-400">
+                        {typingUsers.length === 1 
+                            ? `${typingUsers[0].userName} is typing...`
+                            : typingUsers.length === 2 
+                                ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
+                                : `${typingUsers.length} people are typing...`
+                        }
+                     </span>
                      <span className="flex gap-1">
-                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-75"></span>
-                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-150"></span>
+                         <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"></span>
+                         <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce delay-75"></span>
+                         <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce delay-150"></span>
                      </span>
                  </div>
              </div>

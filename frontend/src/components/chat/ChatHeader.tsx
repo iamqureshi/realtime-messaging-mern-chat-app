@@ -5,11 +5,26 @@ interface ChatHeaderProps {
   chatName: string;
   avatar?: string;
   isOnline: boolean;
-  isTyping?: boolean;
+  onlineCount?: number;
+  typingUsers?: { userId: string, userName: string }[];
   onBack: () => void;
 }
 
-export const ChatHeader: React.FC<ChatHeaderProps> = ({ chatName, avatar, isOnline, isTyping, onBack }) => {
+export const ChatHeader: React.FC<ChatHeaderProps> = ({ chatName, avatar, isOnline, onlineCount, typingUsers = [], onBack }) => {
+  const getStatusText = () => {
+      if (typingUsers.length > 0) {
+          if (typingUsers.length === 1) return `${typingUsers[0].userName} is typing...`;
+          if (typingUsers.length === 2) return `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`;
+          return `${typingUsers.length} people are typing...`;
+      }
+      if (isOnline) {
+          return onlineCount && onlineCount > 1 ? `${onlineCount} Online` : 'Online';
+      }
+      return 'Offline';
+  };
+
+  const isTyping = typingUsers.length > 0;
+
   return (
     <div className="w-full h-16 sm:h-20 px-4 py-2 border-b border-gray-800 bg-gray-900/95 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between shadow-sm">
       <div className="flex items-center gap-3">
@@ -43,7 +58,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ chatName, avatar, isOnli
             {chatName}
           </h2>
           <span className={`text-xs ${isTyping ? 'text-emerald-400 font-bold animate-pulse' : (isOnline ? 'text-emerald-400 font-medium' : 'text-gray-500')}`}>
-            {isTyping ? 'Typing...' : (isOnline ? 'Online' : 'Offline')}
+            {getStatusText()}
           </span>
         </div>
       </div>

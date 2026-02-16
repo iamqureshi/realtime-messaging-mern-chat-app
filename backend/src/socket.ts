@@ -31,8 +31,21 @@ export const initializeSocket = (server: HttpServer) => {
       console.log("User Joined Room: " + room);
     });
 
-    socket.on("typing", (room: string) => socket.in(room).emit("typing", room));
-    socket.on("stop_typing", (room: string) => socket.in(room).emit("stop_typing", room));
+    socket.on("typing", (room: string | { chatId: string, userId: string, userName: string }) => {
+        if (typeof room === 'string') {
+            socket.in(room).emit("typing", room);
+        } else {
+             socket.in(room.chatId).emit("typing", room);
+        }
+    });
+
+    socket.on("stop_typing", (room: string | { chatId: string, userId: string }) => {
+        if (typeof room === 'string') {
+             socket.in(room).emit("stop_typing", room);
+        } else {
+             socket.in(room.chatId).emit("stop_typing", room);
+        }
+    });
 
     socket.on("new_message", (newMessageRecieved: any) => {
       const chat = newMessageRecieved.chat || newMessageRecieved.chatId;
